@@ -1,1 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>After Support Mailer</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans JP"', '"Inter"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'bounce-slight': 'bounceSlight 2s infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        bounceSlight: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-3px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        html { scroll-behavior: smooth; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(107, 114, 128, 0.8); }
+        
+        .bg-animate {
+            background-size: 300% 300%;
+            animation: gradientBG 20s ease infinite;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .mac-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; position: relative; margin-right: 6px; transition: transform 0.2s; }
+        .mac-dot:hover { transform: scale(1.1); }
+        .mac-close { background-color: #FF5F56; }
+        .mac-minimize { background-color: #FFBD2E; }
+        .mac-maximize { background-color: #27C93F; }
+
+        ::selection { background: rgba(236, 72, 153, 0.2); color: inherit; }
+        .dark ::selection { background: rgba(236, 72, 153, 0.4); }
+    </style>
+
+    <!-- Correct Import Maps -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.263.1",
+        "@google/genai": "https://esm.sh/@google/genai@0.2.1",
+        "clsx": "https://esm.sh/clsx@2.1.0",
+        "tailwind-merge": "https://esm.sh/tailwind-merge@2.2.1"
+      }
+    }
+    </script>
+    <!-- Babel Standalone for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 dark:from-slate-900 dark:via-purple-950 dark:to-slate-900 text-slate-700 dark:text-slate-100 min-h-screen transition-colors duration-700 bg-animate selection:bg-pink-500 selection:text-white">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { GoogleGenAI } from '@google/genai';
+        import { 
+            User, Briefcase, ClipboardList, AlertTriangle, HeartHandshake, 
+            CalendarClock, Wrench, Search, ChevronDown, Plus, Trash2, 
+            Clock, XCircle, Sparkles, BrainCircuit, SendHorizontal,
+            CheckCircle2, AlertCircle, Copy, Check, Settings, X, 
+            ExternalLink, KeyRound, Send, Moon, Sun, RefreshCw, 
+            MessageSquare, Mail 
+        } from 'lucide-react';
+        import { clsx } from 'clsx';
+        import { twMerge } from 'tailwind-merge';
+
+        // --- CONSTANTS ---
+        const DEFAULT_STATE = {
+            mode: 'normal',
+            customerName: '',
+            staffName: '畑',
+            inspectionType: '6か月',
+            customInspectionType: '',
+            issueDetail: '',
+            needsApology: false,
+            visitReason: '修繕作業',
+            candidateDates: '',
+            customMessage: '',
+            useThinking: true,
+            apiKey: '',
+            modelName: 'gemini-3-flash-preview',
+            generatedText: ''
+        };
+
+        // --- HELPERS ---
+        const generatePreviewText = (state) => {
+            const {
+                mode, customerName, staffName, inspectionType, customInspectionType,
+                issueDetail, needsApology, visitReason, candidateDates, customMessage, apiKey
+            } = state;
+
+            if (mode === 'custom') {
+                const content = customMessage ? customMessage : '（ここにAIに伝えたい要件を入力してください）';
+                if (apiKey) {
+                    return `（右上のボタンを押すとAIが文章を生成します）\n\n手動プロンプト作成用:\n# 命令\nあなたは住宅メーカーの担当者です。\nお客様に送るショートメール（SMS）の文面を作成してください。\n\n# 入力情報\n・宛名: ${customerName || '〇〇'} 様\n・差出人: 桧家住宅 埼玉北工事部 ${staffName || '担当者'}\n・要件: ${content}\n\n# 出力\n丁寧で親しみやすい文面案を1つ作成してください。`;
+                } else {
+                    return `# 命令\nあなたは住宅メーカーのアフターサポート担当者です。\nお客様に送る携帯電話のショートメール（SMS/MMS）の文面を作成してください。\n\n# 制約\n・顧客対応のため、丁寧な言葉遣いで。\n・読みやすくなるよう、適切に改行を入れること。\n\n# 入力情報\n・宛名: ${customerName || '〇〇'} 様\n・差出人: 桧家住宅 埼玉北工事部 ${staffName || '担当者'}\n・要件/伝えたいこと:\n${content}\n\n# 出力\n丁寧で親しみやすい文面案を1つ作成してください。`;
+                }
+            } else if (mode === 'sms') {
+                let text = `${customerName} 様\n\nいつもお世話になっております。桧家住宅の${staffName}です。\n\n次回の訪問日程の確認でご連絡いたしました。\n予定通り、下記日時にお伺いいたします。\n\n`;
+                text += candidateDates.trim() ? `【日時】\n${candidateDates.trim()}\n\n` : `【日時】\n（日時を入力してください）\n\n`;
+                text += `当日はよろしくお願いいたします。\n※変更がある場合はお早めにご連絡ください。`;
+                return text;
+            } else {
+                let type = inspectionType === 'その他' ? customInspectionType : inspectionType;
+                type = type.trim();
+                if (type && !type.includes('点検')) type += '点検';
+                const greeting = `いつも大変お世話になっております。\n桧家住宅 埼玉北工事部の${staffName}です。`;
+                let mainBody = '';
+                if (type) mainBody += `先日は、${type}にお立会いいただきありがとうございました。\n`;
+                if (issueDetail) mainBody += `ご指摘いただきました${issueDetail}の件についてご連絡いたしました。\n`;
+                if (needsApology) mainBody += issueDetail ? `点検日からお時間をいただいてしまい、誠に申し訳ございません。\n` : `ご連絡が遅くなりまして、誠に申し訳ございません。\n`;
+                const reasonText = visitReason === '現地調査' ? '状況確認（現地調査）' : '修繕作業';
+                let proposal = `つきましては、下記日程にて${reasonText}にお伺いしたく存じます。\n\n`;
+                if (candidateDates.trim()) {
+                    proposal += `【候補日時】\n${candidateDates.trim()}\n\n上記以外でも、火・水を除く平日・土日の9時～17時の間で調整可能です。\nご都合はいかがでしょうか。`;
+                } else {
+                    proposal += `恐れ入りますが、火・水を除く平日・土日の9時～17時の間で、\nご都合のよろしい日程を3つほどお知らせいただけますでしょうか。`;
+                }
+                return `${customerName} 様\n\n${greeting}\n\n${mainBody}\n${proposal}\n\n何卒よろしくお願い申し上げます。\n\n桧家住宅 埼玉北工事部 ${staffName}`;
+            }
+        };
+
+        const generateAIContent = async (state) => {
+            const { apiKey, modelName, useThinking, customerName, staffName, customMessage } = state;
+            if (!apiKey) throw new Error("APIキーが設定されていません。");
+            
+            const ai = new GoogleGenAI({ apiKey });
+            let prompt = "";
+            if (useThinking) {
+                prompt = `あなたは住宅メーカーのアフターサポート担当者です。\n思考プロセスを用いて、お客様（${customerName} 様）に対し、以下の要件でショートメール（SMS）の最適な文面を1つ作成してください。\n送信者名は「桧家住宅 埼玉北工事部 ${staffName}」です。\n\n要件：\n${customMessage}\n\n制約：\n・顧客対応のため、丁寧な言葉遣いで。\n・読みやすくなるよう、適切に改行を入れること。\n・挨拶から結びまで含める。\n・出力はメール本文のみにする。`;
+            } else {
+                prompt = `あなたは住宅メーカーのアフターサポート担当者です。\nお客様（${customerName} 様）に対し、以下の要件でショートメール（SMS）の文面を作成してください。\n送信者名は「桧家住宅 埼玉北工事部 ${staffName}」です。\n\n要件：\n${customMessage}\n\n制約：\n・顧客対応のため、丁寧な言葉遣いで。\n・読みやすくなるよう、適切に改行を入れること。\n・前置き不要。挨拶から結びまで含める。`;
+            }
+
+            try {
+                const config = {};
+                if (useThinking && (modelName.includes('gemini-3') || modelName.includes('gemini-2.5'))) {
+                    config.thinkingConfig = { thinkingBudget: 1024 }; 
+                    config.maxOutputTokens = 2048;
+                }
+                const response = await ai.models.generateContent({ model: modelName, contents: prompt, config: config });
+                return response.text || "生成されたテキストが空です";
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                if (error.message?.includes('429')) throw new Error('アクセスが集中しており制限がかかりました (429)。しばらく待ってから再試行してください。');
+                throw new Error(`APIエラーが発生しました: ${error.message || '不明なエラー'}`);
+            }
+        };
+
+        // --- COMPONENTS ---
+        const Card = ({ children, className, icon: Icon, title, colorClass, gradientClass }) => (
+            <div className={twMerge("group relative bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl shadow-lg border border-white/50 dark:border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:bg-white/80 dark:hover:bg-slate-800/80", className)}>
+                <div className={twMerge("px-6 py-4 border-b border-white/20 flex items-center gap-3", gradientClass)}>
+                    <div className={twMerge("w-8 h-8 rounded-xl flex items-center justify-center shadow-sm", colorClass)}>
+                        <Icon className="w-5 h-5 text-white" />
+                    </div>
+                    <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">{title}</h2>
+                </div>
+                <div className="p-6 space-y-6">{children}</div>
+            </div>
+        );
+
+        const Label = ({ children, className, required }) => (
+            <label className={twMerge("block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 ml-1", className)}>
+                {children} {required && <span className="text-rose-500">*</span>}
+            </label>
+        );
+
+        const Input = ({ icon: Icon, className, ...props }) => (
+            <div className="relative group">
+                {Icon && <Icon className="absolute left-3.5 top-3 text-slate-400 dark:text-slate-500 w-5 h-5 group-focus-within:text-current transition-colors duration-300" />}
+                <input className={twMerge("w-full pl-11 pr-4 py-2.5 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white transition-all placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-opacity-50 focus:border-transparent outline-none shadow-sm", className)} {...props} />
+            </div>
+        );
+
+        const RadioCard = ({ label, icon: Icon, checked, onChange, color }) => (
+            <label className="cursor-pointer relative flex-1">
+                <input type="radio" className="sr-only peer" checked={checked} onChange={onChange} />
+                <div className={clsx("h-full flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all duration-200", checked ? `bg-${color}-50/80 dark:bg-${color}-900/20 border-${color}-500 text-${color}-600 dark:text-${color}-400 shadow-md transform scale-[1.02]` : "bg-slate-50/50 dark:bg-slate-800/50 border-transparent text-slate-500 dark:text-slate-400 hover:border-slate-200 dark:hover:border-slate-600 hover:bg-white dark:hover:bg-slate-800")}>
+                    <Icon className={clsx("w-6 h-6", checked && "animate-bounce-slight")} />
+                    <span className="font-bold text-sm">{label}</span>
+                    {checked && <div className={`absolute top-2 right-2 w-2 h-2 rounded-full bg-${color}-500`}></div>}
+                </div>
+            </label>
+        );
+
+        const InputForms = ({ state, updateState, onGenerateAI, isGenerating }) => {
+            const [date, setDate] = useState('');
+            const [time, setTime] = useState('10:00');
+            const [endTime, setEndTime] = useState('15:00');
+            const [useEndTime, setUseEndTime] = useState(false);
+
+            const accentColor = state.mode === 'sms' ? 'emerald' : state.mode === 'custom' ? 'violet' : 'pink';
+            const accentGradient = state.mode === 'sms' ? 'bg-gradient-to-r from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/20 dark:to-teal-500/20' : state.mode === 'custom' ? 'bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 dark:from-violet-500/20 dark:to-fuchsia-500/20' : 'bg-gradient-to-r from-pink-500/10 to-purple-500/10 dark:from-pink-500/20 dark:to-purple-500/20';
+            const iconBg = state.mode === 'sms' ? 'bg-emerald-500' : state.mode === 'custom' ? 'bg-violet-500' : 'bg-pink-500';
+            const focusRing = state.mode === 'sms' ? 'focus:ring-emerald-500' : state.mode === 'custom' ? 'focus:ring-violet-500' : 'focus:ring-pink-500';
+
+            const timeOptions = [];
+            for (let h = 9; h <= 19; h++) {
+                for (let m = 0; m < 60; m += 15) {
+                    if (h === 19 && m > 0) break;
+                    timeOptions.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                }
+            }
+
+            const handleAddDate = () => {
+                if (!date) return;
+                const dateObj = new Date(date);
+                const dateStr = dateObj.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+                let timeStr = time;
+                if (useEndTime) timeStr += `～${endTime}`;
+                const newEntry = `${dateStr} ${timeStr}`;
+                const current = state.candidateDates ? state.candidateDates + '\n' : '';
+                updateState({ candidateDates: current + newEntry });
+                setDate('');
+            };
+
+            return (
+                <div className="space-y-6">
+                    <Card icon={User} title="基本情報設定" gradientClass={accentGradient} colorClass={iconBg}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label required className={`text-${accentColor}-600 dark:text-${accentColor}-400`}>顧客名</Label>
+                                <Input icon={User} value={state.customerName} onChange={(e) => updateState({ customerName: e.target.value })} placeholder="例：山田 太郎" className={`group-focus-within:text-${accentColor}-500 ${focusRing}`} />
+                            </div>
+                            <div>
+                                <Label required className={`text-${accentColor}-600 dark:text-${accentColor}-400`}>担当者名</Label>
+                                <Input icon={Briefcase} value={state.staffName} onChange={(e) => updateState({ staffName: e.target.value })} placeholder="担当者名" className={`group-focus-within:text-${accentColor}-500 ${focusRing}`} />
+                            </div>
+                        </div>
+                    </Card>
+
+                    <div className="space-y-6">
+                        {state.mode !== 'custom' && (
+                            <div className="space-y-6 animate-slide-up">
+                                {state.mode === 'normal' && (
+                                    <Card icon={ClipboardList} title="点検・不具合詳細" gradientClass="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 dark:from-blue-500/20 dark:to-cyan-500/20" colorClass="bg-blue-500">
+                                        <div>
+                                            <Label className="text-blue-600 dark:text-blue-400">点検種別</Label>
+                                            <div className="flex gap-2 mb-3">
+                                                {['6か月', '2年', 'その他'].map((type) => (
+                                                    <button key={type} onClick={() => updateState({ inspectionType: type })} className={clsx("flex-1 py-2 px-3 rounded-xl text-sm font-bold transition-all border-2", state.inspectionType === type ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm" : "border-transparent bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700")}>
+                                                        {type === 'その他' ? 'その他' : `${type}点検`}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {state.inspectionType === 'その他' && <Input value={state.customInspectionType} onChange={(e) => updateState({ customInspectionType: e.target.value })} placeholder="例：1年点検、臨時点検など" className="animate-fade-in focus:ring-blue-500" />}
+                                        </div>
+                                        <div>
+                                            <Label className="text-amber-600 dark:text-amber-400">不具合・指摘内容</Label>
+                                            <div className="relative group">
+                                                <AlertTriangle className="absolute left-3.5 top-3 text-slate-400 dark:text-slate-500 w-5 h-5 group-focus-within:text-amber-500 transition-colors" />
+                                                <textarea value={state.issueDetail} onChange={(e) => updateState({ issueDetail: e.target.value })} placeholder="例：クロスの剥がれ、建具の調整" rows={3} className="w-full pl-11 pr-4 py-2.5 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white resize-none transition-all placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-amber-500 focus:ring-opacity-50 outline-none shadow-sm"></textarea>
+                                            </div>
+                                        </div>
+                                        <div className={clsx("flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer", state.needsApology ? "bg-orange-50/80 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800" : "bg-slate-50/50 dark:bg-slate-800/50 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800")} onClick={() => updateState({ needsApology: !state.needsApology })}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={clsx("p-2 rounded-lg transition-colors", state.needsApology ? "bg-white dark:bg-orange-900 text-orange-500" : "bg-slate-200 dark:bg-slate-700 text-slate-400")}>
+                                                    <HeartHandshake className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className={clsx("text-sm font-bold", state.needsApology ? "text-orange-900 dark:text-orange-200" : "text-slate-600 dark:text-slate-400")}>お詫び文を挿入</div>
+                                                    <div className="text-xs text-slate-400 dark:text-slate-500">遅延時などに使用</div>
+                                                </div>
+                                            </div>
+                                            <div className={clsx("w-6 h-6 rounded-full border flex items-center justify-center transition-all", state.needsApology ? "bg-orange-500 border-orange-500" : "border-slate-300 dark:border-slate-600")}>
+                                                {state.needsApology && <CheckCircle2 className="w-4 h-4 text-white" />}
+                                            </div>
+                                        </div>
+                                    </Card>
+                                )}
+                                <Card icon={CalendarClock} title="訪問・日程調整" gradientClass="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/20 dark:to-teal-500/20" colorClass="bg-emerald-500">
+                                    <div>
+                                        <Label className="text-emerald-600 dark:text-emerald-400">訪問理由</Label>
+                                        <div className="flex gap-4">
+                                            <RadioCard label="修繕作業" icon={Wrench} checked={state.visitReason === '修繕作業'} onChange={() => updateState({ visitReason: '修繕作業' })} color="blue" />
+                                            <RadioCard label="現地調査" icon={Search} checked={state.visitReason === '現地調査'} onChange={() => updateState({ visitReason: '現地調査' })} color="emerald" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between items-end mb-2">
+                                            <Label className="text-emerald-600 dark:text-emerald-400">日時設定</Label>
+                                            {state.candidateDates && (
+                                                <button onClick={() => updateState({ candidateDates: '' })} className="text-xs text-rose-500 hover:text-rose-600 dark:text-rose-400 flex items-center gap-1 transition-colors px-2 py-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-900/20 font-bold"><Trash2 className="w-3 h-3" /> クリア</button>
+                                            )}
+                                        </div>
+                                        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                                            <div className="flex flex-col sm:flex-row gap-2">
+                                                <div className="flex-1">
+                                                    <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500/50 outline-none" />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="relative w-24">
+                                                        <select value={time} onChange={(e) => setTime(e.target.value)} className="w-full px-2 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500/50">{timeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                                                        <ChevronDown className="absolute right-2 top-2.5 w-3 h-3 text-slate-400 pointer-events-none" />
+                                                    </div>
+                                                    {useEndTime && (
+                                                        <>
+                                                            <span className="text-slate-400">～</span>
+                                                            <div className="relative w-24 animate-fade-in">
+                                                                <select value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full px-2 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500/50">{timeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                                                                <ChevronDown className="absolute right-2 top-2.5 w-3 h-3 text-slate-400 pointer-events-none" />
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                <button onClick={() => setUseEndTime(!useEndTime)} className={clsx("p-2 rounded-lg border transition-all", useEndTime ? "bg-slate-200 dark:bg-slate-700 border-transparent text-slate-500" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-400 hover:text-emerald-500")} title="終了時間を追加"><Clock className="w-4 h-4" /></button>
+                                                <button onClick={handleAddDate} disabled={!date} className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-bold shadow-md shadow-emerald-500/20 hover:bg-emerald-600 hover:shadow-emerald-500/30 active:scale-95 transition-all disabled:opacity-50 disabled:shadow-none"><Plus className="w-5 h-5" /></button>
+                                            </div>
+                                        </div>
+                                        <textarea value={state.candidateDates} onChange={(e) => updateState({ candidateDates: e.target.value })} rows={4} placeholder="追加された日時がここに表示されます" className="w-full mt-3 p-4 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-white font-mono text-sm shadow-sm transition-all placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-emerald-500/50 outline-none"></textarea>
+                                    </div>
+                                </Card>
+                            </div>
+                        )}
+                        {state.mode === 'custom' && (
+                            <div className="animate-slide-up">
+                                <Card icon={Sparkles} title="AI文章作成" gradientClass="bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 dark:from-violet-500/20 dark:to-fuchsia-500/20" colorClass="bg-violet-500">
+                                    <div className="bg-violet-50 dark:bg-violet-900/20 p-4 rounded-xl border border-violet-100 dark:border-violet-800/50 flex gap-3">
+                                        <div className="p-2 bg-white dark:bg-violet-900/50 rounded-lg h-fit text-violet-500"><BrainCircuit className="w-5 h-5" /></div>
+                                        <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed"><span className="font-bold text-violet-600 dark:text-violet-400 block mb-0.5">AIアシスタント</span>要件を箇条書きなどで入力してください。<br/><span className="text-xs opacity-75">※Enterキーで送信 (Shift+Enterで改行)</span></div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-violet-600 dark:text-violet-400">伝えたい要件</Label>
+                                        <textarea value={state.customMessage} onChange={(e) => updateState({ customMessage: e.target.value })} onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onGenerateAI(); }}} placeholder="例：&#13;&#10;・来週の月曜日に電話したい&#13;&#10;・時間は10時から12時の間がいい&#13;&#10;・都合が悪ければ教えてほしい" rows={8} className="w-full p-4 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white resize-none transition-all focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-violet-500/50 outline-none shadow-sm leading-relaxed"></textarea>
+                                    </div>
+                                    <div className="flex items-center justify-between pt-2">
+                                        <label className="flex items-center gap-3 cursor-pointer group p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                            <div className="relative">
+                                                <input type="checkbox" checked={state.useThinking} onChange={(e) => updateState({ useThinking: e.target.checked })} className="sr-only peer" />
+                                                <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 rounded-full peer-checked:bg-violet-500 transition-colors"></div>
+                                                <div className="absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-5 shadow-sm"></div>
+                                            </div>
+                                            <div className="flex flex-col"><span className="text-xs font-bold text-slate-700 dark:text-slate-300">Thinking Mode</span><span className="text-[10px] text-slate-400">思考プロセスを使用して生成</span></div>
+                                        </label>
+                                        <button onClick={onGenerateAI} disabled={isGenerating || !state.apiKey} className="px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:grayscale disabled:transform-none" title={!state.apiKey ? "APIキーを設定してください" : "AIで生成"}>
+                                            <span className="tracking-wide">生成する</span><SendHorizontal className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </Card>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const PreviewPanel = ({ text, modeName, isGenerating, hasError, onToast }) => {
+            const [isCopied, setIsCopied] = useState(false);
+            const handleCopy = async () => {
+                if (!text) return;
+                try {
+                    await navigator.clipboard.writeText(text);
+                    setIsCopied(true);
+                    onToast('クリップボードにコピーしました');
+                    setTimeout(() => setIsCopied(false), 2000);
+                } catch (err) { console.error('Copy failed', err); }
+            };
+
+            return (
+                <div className="relative group h-[calc(100vh-140px)] min-h-[500px] flex flex-col">
+                    <div className="absolute -inset-1 bg-gradient-to-br from-pink-500/30 to-violet-600/30 dark:from-pink-500/20 dark:to-violet-600/20 rounded-[24px] blur-2xl opacity-50 group-hover:opacity-75 transition duration-1000"></div>
+                    <div className="relative flex-1 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/60 dark:border-slate-700/50 overflow-hidden transition-all duration-300 flex flex-col">
+                        <div className="bg-slate-50/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 px-5 py-4 flex items-center justify-between flex-shrink-0">
+                            <div className="flex gap-2 opacity-80 hover:opacity-100 transition-opacity">
+                                <div className="mac-dot mac-close shadow-sm"></div><div className="mac-dot mac-minimize shadow-sm"></div><div className="mac-dot mac-maximize shadow-sm"></div>
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest select-none truncate opacity-80">{modeName}</span>
+                            <div className="w-14 flex justify-end">{hasError && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 animate-pulse bg-rose-50 dark:bg-rose-900/30 px-2 py-1 rounded-full"><AlertCircle className="w-3 h-3" /><span>必須</span></div>}</div>
+                        </div>
+                        <div className="flex-1 relative overflow-hidden bg-slate-50/30 dark:bg-black/20">
+                            <textarea readOnly value={text} className="w-full h-full p-6 bg-transparent resize-none font-mono text-sm leading-relaxed focus:outline-none text-slate-700 dark:text-slate-300 selection:bg-pink-500/20 dark:selection:bg-pink-500/30 overflow-y-auto custom-scrollbar"></textarea>
+                            {isGenerating && (
+                                <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md flex flex-col items-center justify-center gap-4 z-20 animate-fade-in">
+                                    <div className="relative">
+                                        <div className="w-12 h-12 border-4 border-slate-200 dark:border-slate-700 rounded-full"></div>
+                                        <div className="absolute top-0 left-0 w-12 h-12 border-4 border-violet-500 rounded-full border-t-transparent animate-spin"></div>
+                                    </div>
+                                    <span className="text-xs font-bold text-violet-600 dark:text-violet-400 animate-pulse tracking-wide">AI生成中...</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="absolute bottom-6 right-6 z-30">
+                        <button onClick={handleCopy} disabled={hasError || !text} className={clsx("flex items-center gap-2 px-6 py-3.5 rounded-full font-bold shadow-lg transition-all transform hover:-translate-y-1 active:scale-95 ring-4 ring-white/30 dark:ring-black/30 backdrop-blur-sm", isCopied ? "bg-emerald-500 text-white shadow-emerald-500/30" : "bg-gradient-to-r from-pink-500 to-violet-600 text-white shadow-pink-500/30 hover:shadow-xl hover:shadow-pink-500/40", (hasError || !text) && "opacity-50 cursor-not-allowed grayscale transform-none hover:translate-y-0")}>
+                            {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            <span className="tracking-wide">{isCopied ? "COPIED!" : "COPY"}</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const SettingsModal = ({ isOpen, onClose, state, updateState }) => {
+            if (!isOpen) return null;
+            const handleSave = () => onClose();
+            const handleClear = () => { if(confirm('設定を削除しますか？')) updateState({ apiKey: '', modelName: 'gemini-3-flash-preview' }); };
+
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-fade-in" onClick={onClose}></div>
+                    <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-0 border border-white/20 dark:border-slate-700 animate-slide-up overflow-hidden">
+                        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2"><Settings className="w-5 h-5 text-pink-500" />AI設定</h3>
+                            <button onClick={onClose} className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><X className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-end"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1"><KeyRound className="w-3 h-3" /> Gemini API Key</label><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-pink-500 hover:text-pink-600 hover:underline flex items-center gap-1 transition-colors"><ExternalLink className="w-3 h-3" />キーを取得</a></div>
+                                <input type="password" value={state.apiKey} onChange={(e) => updateState({ apiKey: e.target.value })} placeholder="AIzaSy..." className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white transition-all focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none" />
+                                <p className="text-[10px] text-slate-400">キーはローカルストレージにのみ保存されます。</p>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1"><Sparkles className="w-3 h-3" /> Model Name</label>
+                                <input type="text" value={state.modelName} onChange={(e) => updateState({ modelName: e.target.value })} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white transition-all focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none" />
+                                <p className="text-[10px] text-slate-400">推奨: gemini-3-flash-preview</p>
+                            </div>
+                            <div className="pt-4 flex gap-3">
+                                <button onClick={handleSave} className="flex-1 bg-gradient-to-r from-pink-500 to-violet-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-pink-500/20 hover:shadow-pink-500/40 active:scale-95 transition-all">設定を保存</button>
+                                <button onClick={handleClear} className="px-5 py-3.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all font-bold text-sm">削除</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Toast = ({ message, onClose }) => {
+            useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, [onClose]);
+            return (
+                <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[110] animate-fade-in pointer-events-none">
+                    <div className="bg-slate-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-slate-900 px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-white/10 dark:border-slate-200"><span className="text-sm font-bold tracking-wide">{message}</span></div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP COMPONENT ---
+        function App() {
+            const [state, setState] = useState(() => {
+                const savedKey = localStorage.getItem('gemini_api_key');
+                const savedModel = localStorage.getItem('gemini_model_name');
+                return { ...DEFAULT_STATE, apiKey: savedKey || '', modelName: savedModel || 'gemini-3-flash-preview', staffName: '畑' };
+            });
+
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [isDarkMode, setIsDarkMode] = useState(false);
+            const [toastMsg, setToastMsg] = useState(null);
+
+            useEffect(() => {
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme === 'dark') { setIsDarkMode(true); document.documentElement.classList.add('dark'); }
+            }, []);
+
+            const toggleTheme = () => {
+                const newMode = !isDarkMode;
+                setIsDarkMode(newMode);
+                if (newMode) { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); }
+                else { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); }
+            };
+
+            useEffect(() => {
+                if (state.apiKey) localStorage.setItem('gemini_api_key', state.apiKey); else localStorage.removeItem('gemini_api_key');
+                if (state.modelName) localStorage.setItem('gemini_model_name', state.modelName);
+            }, [state.apiKey, state.modelName]);
+
+            const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
+
+            useEffect(() => {
+                if (state.mode !== 'custom' && !isGenerating) { const text = generatePreviewText(state); updateState({ generatedText: text }); }
+                else if (state.mode === 'custom' && !state.generatedText) { const text = generatePreviewText(state); updateState({ generatedText: text }); }
+            }, [state.mode, state.customerName, state.staffName, state.inspectionType, state.customInspectionType, state.issueDetail, state.needsApology, state.visitReason, state.candidateDates, state.customMessage, state.apiKey, isGenerating]);
+
+            const handleAIGenerate = async () => {
+                if (!state.apiKey) { setIsSettingsOpen(true); return; }
+                setIsGenerating(true);
+                try {
+                    const text = await generateAIContent(state);
+                    updateState({ generatedText: text });
+                    setToastMsg('AI生成が完了しました✨');
+                } catch (error) {
+                    setToastMsg(`エラー: ${error.message}`);
+                    updateState({ generatedText: `エラーが発生しました: ${error.message}` });
+                } finally { setIsGenerating(false); }
+            };
+
+            const handleReset = () => {
+                if(confirm('入力内容をリセットしますか？')) {
+                    setState(prev => ({ ...DEFAULT_STATE, apiKey: prev.apiKey, modelName: prev.modelName, staffName: '畑' }));
+                    setToastMsg('リセットしました');
+                }
+            };
+
+            const hasError = !state.customerName || !state.staffName;
+
+            const bgClass = useMemo(() => {
+                if (state.mode === 'sms') return "from-emerald-100 via-teal-100 to-cyan-100 dark:from-slate-900 dark:via-emerald-950 dark:to-slate-900";
+                if (state.mode === 'custom') return "from-violet-100 via-fuchsia-100 to-pink-100 dark:from-slate-900 dark:via-violet-950 dark:to-slate-900";
+                return "from-indigo-100 via-purple-100 to-pink-100 dark:from-slate-900 dark:via-purple-950 dark:to-slate-900";
+            }, [state.mode]);
+            
+            useEffect(() => {
+                document.body.className = `bg-gradient-to-br ${bgClass} text-slate-700 dark:text-slate-100 min-h-screen transition-colors duration-700 bg-animate selection:bg-pink-500 selection:text-white`;
+            }, [bgClass]);
+
+            return (
+                <div className="min-h-screen font-sans">
+                    {toastMsg && <Toast message={toastMsg} onClose={() => setToastMsg(null)} />}
+                    <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} state={state} updateState={updateState} />
+                    <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-white/50 dark:border-slate-800 sticky top-0 z-50 shadow-sm transition-all duration-300">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-gradient-to-tr from-indigo-500 to-purple-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20 transform hover:rotate-3 transition-transform"><Send className="w-5 h-5" /></div>
+                                <div><h1 className="text-lg font-black text-slate-800 dark:text-white tracking-tight leading-none">After Support Mailer</h1><p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">桧家住宅 埼玉北工事部</p></div>
+                            </div>
+                            <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/50 p-1 rounded-full border border-white/50 dark:border-slate-700 backdrop-blur-md">
+                                <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-full text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition-all active:scale-95" title="設定"><SettingsIcon className="w-4 h-4" /></button>
+                                <button onClick={toggleTheme} className="p-2 rounded-full text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-yellow-300 hover:bg-white dark:hover:bg-slate-700 transition-all active:scale-95" title="テーマ切替">{isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}</button>
+                                <div className="w-px h-4 bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                                <button onClick={handleReset} className="p-2 rounded-full text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-white dark:hover:bg-slate-700 transition-all active:scale-95" title="リセット"><RefreshCw className="w-4 h-4" /></button>
+                            </div>
+                        </div>
+                    </header>
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+                        <nav className="flex justify-center">
+                            <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl shadow-purple-500/5 border border-white/50 dark:border-slate-700 grid grid-cols-3 gap-1 w-full max-w-lg">
+                                {[{ id: 'normal', label: '日程調整', icon: Mail }, { id: 'sms', label: 'SMS確認', icon: MessageSquare }, { id: 'custom', label: 'AI作成', icon: Sparkles }].map((item) => (
+                                    <button key={item.id} onClick={() => updateState({ mode: item.id })} className={clsx("flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-300", state.mode === item.id ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-md scale-100" : "text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-700 dark:hover:text-slate-200")}>
+                                        <item.icon className={clsx("w-4 h-4", state.mode === item.id && item.id === 'custom' ? "text-violet-500" : state.mode === item.id && item.id === 'sms' ? "text-emerald-500" : state.mode === item.id ? "text-pink-500" : "")} />
+                                        <span>{item.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </nav>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                            <div className="lg:col-span-7"><InputForms state={state} updateState={updateState} onGenerateAI={handleAIGenerate} isGenerating={isGenerating} /></div>
+                            <div className="lg:col-span-5 lg:sticky lg:top-[5.5rem] self-start"><PreviewPanel text={state.generatedText} modeName={state.mode === 'normal' ? '日程調整メール' : state.mode === 'sms' ? '事前確認SMS' : 'AI文章作成'} isGenerating={isGenerating} hasError={hasError} onToast={(msg) => setToastMsg(msg)} /></div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
